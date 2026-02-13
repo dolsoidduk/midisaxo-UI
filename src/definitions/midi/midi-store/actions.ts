@@ -80,7 +80,11 @@ export const findOutputById = (outputId: string): Output => {
   return WebMidi.outputs.find((output: Output) => output.id === outputId);
 };
 
-const pingOutput = async (output: Output, inputs: Inputs[]) => {
+const pingOutput = async (
+  output: Output,
+  inputs: Inputs[],
+  attempt = 0,
+): Promise<any> => {
   return new Promise((resolve, reject) => {
     let input;
     let resolved = false;
@@ -121,15 +125,22 @@ const pingOutput = async (output: Output, inputs: Inputs[]) => {
 
     return delay(1000).then(() => {
       if (!resolved) {
-        logger.error("INITIAL HANDSHAKE TIMED OUT, RETRYING");
+        // Avoid spamming the console on flaky connections
+        if (attempt % 5 === 0) {
+          logger.error("INITIAL HANDSHAKE TIMED OUT, RETRYING");
+        }
         reject("TIMED OUT");
       }
     });
-  }).catch(() => matchInputOutput(output.id));
+  }).catch(() => {
+    const backoffMs = Math.min(2500, 250 + attempt * 250);
+    return delay(backoffMs).then(() => matchInputOutput(output.id, attempt + 1));
+  });
 };
 
 export const matchInputOutput = async (
   outputId: string,
+  attempt = 0,
 ): Promise<InputOutputMatch> => {
   await loadMidi();
 
@@ -147,7 +158,7 @@ export const matchInputOutput = async (
     return delay(250).then(() => matchInputOutput(outputId));
   }
 
-  return pingOutput(output, inputs);
+  return pingOutput(output, inputs, attempt);
 };
 
 export const loadMidi = async (): Promise<void> => {

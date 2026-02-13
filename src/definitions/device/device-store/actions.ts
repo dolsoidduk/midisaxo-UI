@@ -126,6 +126,17 @@ export const connectDeviceStoreToInput = async (
   detachMidiEventHandlers(deviceState.input);
   attachMidiEventHandlers(deviceState.input);
 
+  // Determine actual protocol (1-byte vs 2-byte) using a dedicated request.
+  // The initial handshake heuristic can be wrong on some systems/boards.
+  try {
+    await sendMessage({
+      command: Request.GetValueSize,
+      handler: (valueSize: number) => setInfo({ valueSize }),
+    });
+  } catch (err) {
+    logger.error("Failed to read value size, falling back to handshake", err);
+  }
+
   // In bootloader mode, we cannot send regular requests
   if (isBootloaderMode) {
     deviceState.boardName = output.name;
@@ -135,21 +146,34 @@ export const connectDeviceStoreToInput = async (
     return;
   }
 
-  await sendMessage({
-    command: Request.GetValuesPerMessage,
-    handler: (valuesPerMessageRequest: number) =>
-      setInfo({ valuesPerMessageRequest }),
-  });
-  await sendMessage({
-    command: Request.GetFirmwareVersion,
-    handler: (firmwareVersion: string) => setInfo({ firmwareVersion }),
-  });
+  try {
+    await sendMessage({
+      command: Request.GetValuesPerMessage,
+      handler: (valuesPerMessageRequest: number) =>
+        setInfo({ valuesPerMessageRequest }),
+    });
+  } catch (err) {
+    logger.error("Failed to read values-per-message", err);
+  }
+
+  try {
+    await sendMessage({
+      command: Request.GetFirmwareVersion,
+      handler: (firmwareVersion: string) => setInfo({ firmwareVersion }),
+    });
+  } catch (err) {
+    logger.error("Failed to read firmware version", err);
+  }
   deviceState.connectionState = DeviceConnectionState.Open;
   deviceState.connectionPromise = (null as unknown) as Promise<any>;
   startDeviceConnectionWatcher();
 
   // These requests won't run until connection promise is finished
-  await loadDeviceInfo();
+  try {
+    await loadDeviceInfo();
+  } catch (err) {
+    logger.error("Failed to load device info", err);
+  }
 };
 
 const connectDevice = async (outputId: string): Promise<void> => {
@@ -319,20 +343,31 @@ const sendMessageAndRebootUi = async (
 };
 
 const loadDeviceInfo = async (): Promise<void> => {
-  await sendMessage({
-    command: Request.IdentifyBoard,
-    handler: (value: number[]) => {
-      const board = getBoardDefinition(value);
-      const boardName = (board && board.name) || "Custom OpenDeck board";
-      const firmwareFileName = board && board.firmwareFileName;
+  try {
+    await sendMessage({
+      command: Request.IdentifyBoard,
+      handler: (value: number[]) => {
+        const board = getBoardDefinition(value);
+        const boardName = (board && board.name) || "Custom OpenDeck board";
+        const firmwareFileName = board && board.firmwareFileName;
 
-      setInfo({ boardName, firmwareFileName });
-    },
-  });
-  await sendMessage({
-    command: Request.GetNumberOfSupportedComponents,
-    handler: (numberOfComponents: array[]) => setInfo({ numberOfComponents }),
-  });
+        setInfo({ boardName, firmwareFileName });
+      },
+    });
+  } catch (err) {
+    logger.error("Failed to identify board", err);
+    setInfo({ boardName: "Custom OpenDeck board", firmwareFileName: undefined });
+  }
+
+  try {
+    await sendMessage({
+      command: Request.GetNumberOfSupportedComponents,
+      handler: (numberOfComponents: array[]) => setInfo({ numberOfComponents }),
+    });
+  } catch (err) {
+    logger.error("Failed to read number of supported components", err);
+    setInfo({ numberOfComponents: {} as any });
+  }
   try {
     if (deviceState.valueSize === 2) {
       await sendMessage({
@@ -348,11 +383,16 @@ const loadDeviceInfo = async (): Promise<void> => {
     setInfo({ bootLoaderSupport: false });
   }
 
-  await sendMessage({
-    command: Request.GetNumberOfSupportedPresets,
-    handler: (supportedPresetsCount: number) =>
-      setInfo({ supportedPresetsCount }),
-  });
+  try {
+    await sendMessage({
+      command: Request.GetNumberOfSupportedPresets,
+      handler: (supportedPresetsCount: number) =>
+        setInfo({ supportedPresetsCount }),
+    });
+  } catch (err) {
+    logger.error("Failed to read number of supported presets", err);
+    setInfo({ supportedPresetsCount: 0 });
+  }
 };
 
 // Section / Component values
