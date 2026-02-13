@@ -45,6 +45,13 @@
       }}
     </p>
 
+    <p
+      v-if="showBankSelectCalculator && !simpleLayout && !isDisabled"
+      class="help-text"
+    >
+      CC0 (MSB) {{ bankSelectMsb }} · CC32 (LSB) {{ bankSelectLsb }}
+    </p>
+
     <FormErrorDisplay class="error-message" :errors="errors" />
   </div>
 </template>
@@ -180,6 +187,19 @@ export default defineComponent({
       valueChangeHandler,
     );
 
+    const showBankSelectCalculator = computed(() => key === "bankSelectBank");
+    const bankSelect14Bit = computed(() => {
+      const raw = Number(input.value);
+      if (!Number.isFinite(raw)) {
+        return 0;
+      }
+
+      const floored = Math.floor(raw);
+      return Math.min(16383, Math.max(0, floored));
+    });
+    const bankSelectMsb = computed(() => (bankSelect14Bit.value >> 7) & 0x7f);
+    const bankSelectLsb = computed(() => bankSelect14Bit.value & 0x7f);
+
     const componentProps = {
       label,
       helpText,
@@ -208,6 +228,9 @@ export default defineComponent({
       min,
       max,
       max2Byte,
+      showBankSelectCalculator,
+      bankSelectMsb,
+      bankSelectLsb,
       ControlDisableType,
     };
   },

@@ -43,6 +43,10 @@ const sections: Dictionary<ISectionDefinition> = {
     options: [
       { value: ButtonMessageType.Note, text: "Note" },
       { value: ButtonMessageType.ProgramChange, text: "Program Change" },
+      {
+        value: ButtonMessageType.MidiBankSelect,
+        text: "MIDI Bank Select (CC0+CC32+PC)",
+      },
       { value: ButtonMessageType.ProgramChangeInc, text: "Program Change Inc" },
       { value: ButtonMessageType.ProgramChangeDec, text: "Program Change Dec" },
       {
@@ -94,6 +98,24 @@ const sections: Dictionary<ISectionDefinition> = {
       { value: ButtonMessageType.ControlChange0Only, text: "CC/0 only" },
       { value: ButtonMessageType.BpmInc, text: "BPM Inc" },
       { value: ButtonMessageType.BpmDec, text: "BPM Dec" },
+      { value: ButtonMessageType.SaxFingeringKey, text: "Sax: Fingering key" },
+      {
+        value: ButtonMessageType.SaxPitchBendCalCaptureCenter,
+        text: "Sax: Pitch Bend capture center",
+      },
+      {
+        value: ButtonMessageType.SaxPitchBendCalCaptureMin,
+        text: "Sax: Pitch Bend capture min",
+      },
+      {
+        value: ButtonMessageType.SaxBreathCalCaptureZero,
+        text: "Sax: Breath capture zero",
+      },
+      { value: ButtonMessageType.SaxTransposeUp, text: "Sax: Transpose up" },
+      {
+        value: ButtonMessageType.SaxTransposeDown,
+        text: "Sax: Transpose down",
+      },
     ],
     label: "Message type",
     helpText: ``,
@@ -115,7 +137,8 @@ const sections: Dictionary<ISectionDefinition> = {
   },
   MidiId: {
     showIf: (formState: FormState): boolean =>
-      !HideButtonMidiIdOnTypes.includes(formState.messageType),
+      !HideButtonMidiIdOnTypes.includes(formState.messageType) &&
+      formState.messageType !== ButtonMessageType.MidiBankSelect,
     key: "midiId",
     type: SectionType.Value,
     section: 2,
@@ -124,6 +147,19 @@ const sections: Dictionary<ISectionDefinition> = {
     max: 127,
     label: "MIDI ID",
     helpText: "",
+    block: Block.Button,
+  },
+  BankSelectProgram: {
+    showIf: (formState: FormState): boolean =>
+      formState.messageType == ButtonMessageType.MidiBankSelect,
+    key: "bankSelectProgram",
+    type: SectionType.Value,
+    section: 2,
+    component: FormInputComponent.Input,
+    min: 0,
+    max: 127,
+    label: "Program (PC)",
+    helpText: "Program Change number to send after bank select.",
     block: Block.Button,
   },
   Preset: {
@@ -142,7 +178,8 @@ const sections: Dictionary<ISectionDefinition> = {
   },
   Value: {
     showIf: (formState: FormState): boolean =>
-      !HideButtonVelocityOnTypes.includes(formState.messageType),
+      !HideButtonVelocityOnTypes.includes(formState.messageType) &&
+      formState.messageType !== ButtonMessageType.MidiBankSelect,
     key: "value",
     type: SectionType.Value,
     section: 3,
@@ -152,6 +189,20 @@ const sections: Dictionary<ISectionDefinition> = {
     label: "Value",
     helpText:
       "Velocity for notes, control value for CC, increment/decrement value for Multi Value message types or offset for Program Change.",
+    block: Block.Button,
+  },
+  BankSelectBank: {
+    showIf: (formState: FormState): boolean =>
+      formState.messageType == ButtonMessageType.MidiBankSelect,
+    key: "bankSelectBank",
+    type: SectionType.Value,
+    section: 3,
+    component: FormInputComponent.Input,
+    min: 0,
+    max: 16383,
+    label: "Bank (CC0+CC32)",
+    helpText:
+      "14-bit bank value: MSB*128 + LSB. Sends CC0=MSB and CC32=LSB before Program Change.",
     block: Block.Button,
   },
 };

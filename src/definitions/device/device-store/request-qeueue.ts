@@ -29,6 +29,7 @@ import {
 } from "../../request-log/request-log-store";
 import { clearRequestLog } from "../../request-log/request-log-store/actions";
 import { ensureConnection } from "./actions";
+import { handleSaxSysExEvent } from "./saxophone";
 
 interface IRequestParams {
   command: Request;
@@ -345,6 +346,12 @@ export const handleSysExEvent = (event: InputEventBase<"sysex">): void => {
       type: MidiEventTypeMMC[event.data[4]],
       data: [event.data[4]],
     });
+    return;
+  }
+
+  // Custom saxophone SysEx (0x7E tag) must be handled outside of request queue.
+  // Otherwise it would be parsed as an error status and would fail active requests.
+  if (handleSaxSysExEvent(event.data)) {
     return;
   }
 

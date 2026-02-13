@@ -48,6 +48,7 @@ export enum Block {
   Led = 4,
   Display = 5,
   Touchscreen = 6, // New
+  Saxophone = 7,
 }
 
 export enum AnalogType {
@@ -91,6 +92,14 @@ export enum ButtonMessageType {
   BpmInc = 27,
   BpmDec = 28,
   MmcPlayStop = 29,
+  // Custom / internal (no MIDI output)
+  SaxFingeringKey = 30,
+  SaxPitchBendCalCaptureMin = 31,
+  SaxPitchBendCalCaptureCenter = 32,
+  SaxBreathCalCaptureZero = 33,
+  SaxTransposeUp = 34,
+  SaxTransposeDown = 35,
+  MidiBankSelect = 36,
 }
 
 export enum EncodingMode {
@@ -145,6 +154,12 @@ export const HideButtonVelocityOnTypes = [
   ButtonMessageType.ControlChange0Only,
   ButtonMessageType.BpmInc,
   ButtonMessageType.BpmDec,
+  ButtonMessageType.SaxFingeringKey,
+  ButtonMessageType.SaxPitchBendCalCaptureMin,
+  ButtonMessageType.SaxPitchBendCalCaptureCenter,
+  ButtonMessageType.SaxBreathCalCaptureZero,
+  ButtonMessageType.SaxTransposeUp,
+  ButtonMessageType.SaxTransposeDown,
 ];
 
 export const HideButtonMidiIdOnTypes = [
@@ -160,6 +175,12 @@ export const HideButtonMidiIdOnTypes = [
   ButtonMessageType.BpmInc,
   ButtonMessageType.BpmDec,
   ButtonMessageType.PresetChange,
+  ButtonMessageType.SaxFingeringKey,
+  ButtonMessageType.SaxPitchBendCalCaptureMin,
+  ButtonMessageType.SaxPitchBendCalCaptureCenter,
+  ButtonMessageType.SaxBreathCalCaptureZero,
+  ButtonMessageType.SaxTransposeUp,
+  ButtonMessageType.SaxTransposeDown,
 ];
 
 export const HideButtonMidiChannelOnTypes = [
@@ -179,6 +200,12 @@ export const HideButtonMidiChannelOnTypes = [
   ButtonMessageType.ProgramChangeOffsetDec,
   ButtonMessageType.BpmInc,
   ButtonMessageType.BpmDec,
+  ButtonMessageType.SaxFingeringKey,
+  ButtonMessageType.SaxPitchBendCalCaptureMin,
+  ButtonMessageType.SaxPitchBendCalCaptureCenter,
+  ButtonMessageType.SaxBreathCalCaptureZero,
+  ButtonMessageType.SaxTransposeUp,
+  ButtonMessageType.SaxTransposeDown,
 ];
 
 export const HideAnalogMidiIdOnTypes = [AnalogType.Button];

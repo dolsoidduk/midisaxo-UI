@@ -4,5 +4,6 @@ export * from "./i2c";
 export * from "./encoder";
 export * from "./global";
 export * from "./led";
+export * from "./saxophone";
 export * from "./touchscreen";
 export * from "./block-map";
