@@ -27,17 +27,14 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Yarn
-        run: npm i -g yarn
-
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm install
 
       - name: Build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
         run: |
-          yarn build
+          npm run build
           cp dist/index.html dist/404.html
 
       - name: Setup Pages
