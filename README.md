@@ -27,3 +27,7 @@ To package the configurator for offline usage, `make pkg` command can be used wi
 * Linux: `make pkg PLATFORM=linux`
 * Windows: `make PLATFORM=win32`
 * macOS: `make PLATFORM=darwin`
+
+## Notice / license
+
+See [NOTICE.md](NOTICE.md) for upstream credits and an important note about the current license status of the upstream OpenDeckUI repository.
