@@ -48,23 +48,28 @@
           </p>
 
           <div class="mt-3">
-            <div class="mask-bit-grid">
-              <button
-                v-for="bit in maskBits"
-                :key="bit"
-                type="button"
-                class="h-8 w-8 rounded border text-xs font-mono flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-gray-400"
-                :class="
-                  isMaskBitSet(bit)
-                    ? 'bg-gray-200 text-gray-900 border-gray-300'
-                    : 'bg-transparent text-gray-200 border-gray-600 hover:border-gray-300 hover:text-gray-100'
-                "
-                :disabled="!isConnected"
-                @click.prevent="toggleMaskBit(bit)"
-              >
-                {{ bit }}
-              </button>
-            </div>
+            <table class="mask-bit-table">
+              <tbody>
+                <tr v-for="row in 2" :key="row">
+                  <td v-for="col in 13" :key="col">
+                    <button
+                      v-if="(row - 1) * 13 + (col - 1) < 26"
+                      type="button"
+                      class="h-8 w-8 rounded border text-xs font-mono flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      :class="
+                        isMaskBitSet((row - 1) * 13 + (col - 1))
+                          ? 'bg-gray-200 text-gray-900 border-gray-300'
+                          : 'bg-transparent text-gray-200 border-gray-600 hover:border-gray-300 hover:text-gray-100'
+                      "
+                      :disabled="!isConnected"
+                      @click.prevent="toggleMaskBit((row - 1) * 13 + (col - 1))"
+                    >
+                      {{ (row - 1) * 13 + (col - 1) }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
             <p class="help-text">
               Click bits to edit the mask used by Set/Delete.
             </p>
@@ -451,8 +456,6 @@ export default defineComponent({
     );
 
     const canDelete = computed(() => isConnected.value && effectiveMask.value !== null);
-
-    const maskBits = computed(() => Array.from({ length: 26 }, (_, i) => i));
 
     const isMaskBitSet = (bit: number): boolean => {
       const mask = effectiveMask.value;
@@ -1108,7 +1111,6 @@ export default defineComponent({
       receivedCount,
       nonEmptyEntries,
       requestMask,
-      maskBits,
       isMaskBitSet,
       toggleMaskBit,
       isCalibrationAnyBusy,
@@ -1149,10 +1151,12 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.mask-bit-grid {
-  display: grid;
-  grid-template-columns: repeat(13, 2rem);
-  grid-template-rows: repeat(2, 2rem);
-  gap: 0.25rem;
+.mask-bit-table {
+  border-collapse: separate;
+  border-spacing: 0.25rem;
+}
+
+.mask-bit-table td {
+  padding: 0;
 }
 </style>
