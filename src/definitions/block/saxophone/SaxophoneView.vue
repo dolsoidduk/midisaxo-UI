@@ -980,11 +980,19 @@ export default defineComponent({
       pbMin.value === null || pbMin.value === undefined ? "-" : String(pbMin.value),
     );
 
-    const pbCenterText = computed(() =>
-      pbCenter.value === null || pbCenter.value === undefined
-        ? "-"
-        : String(pbCenter.value),
-    );
+    const pbCenterText = computed(() => {
+      if (pbCenter.value === null || pbCenter.value === undefined) {
+        return "-";
+      }
+
+      const raw = Number(pbCenter.value);
+      const MID = 8192;
+      const HALF_RANGE = 8192;
+      const offsetPct = ((raw - MID) / HALF_RANGE) * 100;
+      const offsetPctRounded = Math.round(offsetPct * 10) / 10;
+      const offsetPctText = `${offsetPctRounded > 0 ? "+" : ""}${offsetPctRounded}%`;
+      return `${raw} (${offsetPctText})`;
+    });
 
     const pbDeadzoneText = computed(() =>
       pbDeadzone.value === null || pbDeadzone.value === undefined
@@ -992,11 +1000,16 @@ export default defineComponent({
         : String(pbDeadzone.value),
     );
 
-    const breathZeroText = computed(() =>
-      breathZero.value === null || breathZero.value === undefined
-        ? "-"
-        : String(breathZero.value),
-    );
+    const breathZeroText = computed(() => {
+      if (breathZero.value === null || breathZero.value === undefined) {
+        return "-";
+      }
+
+      const raw = Number(breathZero.value);
+      const MAX = 16383;
+      const pct = Math.round((raw / MAX) * 100);
+      return `${raw} (${pct}%)`;
+    });
 
     const readSystemSetting = async (index: number): Promise<number | null> => {
       let value: number | null = null;
