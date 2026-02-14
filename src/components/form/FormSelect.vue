@@ -2,13 +2,13 @@
   <select
     :key="keyHash"
     class="form-select mt-1 py-1 text-sm block w-full max-w-sm bg-white text-gray-900"
-    :value="value"
+    :value="normalizedValue"
     @change="emit('changed', $event.target.value)"
   >
     <option
       v-for="(opt, idx) in optionsArray"
       :key="idx"
-      :value="opt.value"
+      :value="String(opt.value)"
     >
       {{ opt.text }}
     </option>
@@ -35,6 +35,10 @@ export default defineComponent({
     // Force vue to rerender when options change
     const keyHash = ref(String(props.value));
 
+    const normalizedValue = computed(() =>
+      props.value === null || props.value === undefined ? "" : String(props.value),
+    );
+
     const optionsArray =
       props.options && typeof props.options === "function"
         ? computed(() => {
@@ -51,6 +55,7 @@ export default defineComponent({
       keyHash,
       emit,
       optionsArray,
+      normalizedValue,
     };
   },
 });
