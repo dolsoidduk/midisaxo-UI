@@ -344,12 +344,31 @@
             >
               Import JSON
             </Button>
+            <Button
+              :disabled="!isConnected || isBackupBusy"
+              @click.prevent="exportMappingsSyx"
+            >
+              Export SYX
+            </Button>
+            <Button
+              :disabled="!isConnected || isBackupBusy"
+              @click.prevent="triggerImportSyx"
+            >
+              Import SYX
+            </Button>
             <input
               ref="importInput"
               class="hidden"
               type="file"
               accept=".json,application/json"
               @change="onImportFileChanged"
+            />
+            <input
+              ref="importSyxInput"
+              class="hidden"
+              type="file"
+              accept=".syx,application/octet-stream"
+              @change="onImportSyxFileChanged"
             />
           </div>
           <p class="help-text">
@@ -459,30 +478,43 @@ export default defineComponent({
     const isBackupBusy = ref(false);
     const backupStatus = ref<string | null>(null);
     const importInput = ref<HTMLInputElement | null>(null);
+    const importSyxInput = ref<HTMLInputElement | null>(null);
 
-    const waitForReceivedEntries = async (
-      expected: number,
-      timeoutMs: number,
-    ): Promise<number> => {
+    const SAX_SYSEX_TAG = 0x7e;
+    const CMD_SET = 0x01;
+
+    const unpackMask = (m0: number, m1: number, m2: number, m3: number): number =>
+      (m0 & 0x7f) |
+      ((m1 & 0x7f) << 7) |
+      ((m2 & 0x7f) << 14) |
+      ((m3 & 0x7f) << 21);
+
+    const packMask = (mask: number): [number, number, number, number] => [
+      mask & 0x7f,
+      (mask >> 7) & 0x7f,
+      (mask >> 14) & 0x7f,
+      (mask >> 21) & 0x7f,
+    ];
+
+    const waitForReceivedEntries = async (expected: number, timeoutMs: number) => {
       const started = Date.now();
       while (receivedCount.value < expected && Date.now() - started < timeoutMs) {
-        await delay(50);
+        backupStatus.value = `Reading mappings... (${receivedCount.value} / ${expected})`;
+        await delay(100);
       }
       return receivedCount.value;
     };
 
-    const refreshMappingsForBackup = async (): Promise<void> => {
+    const refreshMappingsForBackup = async (): Promise<number> => {
       if (!isConnected.value) {
         backupStatus.value = "Not connected";
-        return;
+        return 0;
       }
 
-      isBackupBusy.value = true;
-      backupStatus.value = "Reading mappings...";
       await saxophoneActions.loadAllEntries();
       const got = await waitForReceivedEntries(128, 6000);
       backupStatus.value = `Received ${got} / 128`;
-      isBackupBusy.value = false;
+      return got;
     };
 
     const exportMappingsJson = async (): Promise<void> => {
@@ -534,6 +566,69 @@ export default defineComponent({
       }
     };
 
+    const exportMappingsSyx = async (): Promise<void> => {
+      if (!isConnected.value) {
+        backupStatus.value = "Not connected";
+        return;
+      }
+
+      try {
+        isBackupBusy.value = true;
+        backupStatus.value = "Preparing SYX export...";
+
+        await refreshMappingsForBackup();
+
+        const used = saxophoneState.entries
+          .filter((e) => !!e && e.used)
+          .map((e) => ({ mask: (e!.mask >>> 0) as number, note: (e!.note & 0x7f) as number }));
+
+        const bytes: number[] = [];
+        for (const m of used) {
+          const [m0, m1, m2, m3] = packMask(m.mask >>> 0);
+          // F0 00 53 43 7E 01 m0 m1 m2 m3 note F7
+          bytes.push(
+            0xf0,
+            0x00,
+            0x53,
+            0x43,
+            SAX_SYSEX_TAG,
+            CMD_SET,
+            m0,
+            m1,
+            m2,
+            m3,
+            m.note & 0x7f,
+            0xf7,
+          );
+        }
+
+        const blob = new Blob([new Uint8Array(bytes)], {
+          type: "application/octet-stream",
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const ts = new Date()
+          .toISOString()
+          .replaceAll(":", "")
+          .replaceAll("-", "")
+          .replace("T", "_")
+          .replace("Z", "");
+        a.href = url;
+        a.download = `midisaxo-fingering-mappings-${ts}.syx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        backupStatus.value = `Exported SYX (${used.length} message(s))`;
+      } catch (e) {
+        backupStatus.value = "SYX export failed";
+      } finally {
+        isBackupBusy.value = false;
+      }
+    };
+
     const triggerImportJson = (): void => {
       if (!isConnected.value) {
         backupStatus.value = "Not connected";
@@ -541,6 +636,15 @@ export default defineComponent({
       }
 
       importInput.value?.click();
+    };
+
+    const triggerImportSyx = (): void => {
+      if (!isConnected.value) {
+        backupStatus.value = "Not connected";
+        return;
+      }
+
+      importSyxInput.value?.click();
     };
 
     const onImportFileChanged = async (event: Event): Promise<void> => {
@@ -621,6 +725,118 @@ export default defineComponent({
         backupStatus.value = `Imported ${imported}, skipped ${skipped}, invalid ${invalid}`;
       } catch (e) {
         backupStatus.value = "Import failed";
+      } finally {
+        isBackupBusy.value = false;
+      }
+    };
+
+    const parseSyxMessages = (data: Uint8Array): Uint8Array[] => {
+      const messages: Uint8Array[] = [];
+      let i = 0;
+      while (i < data.length) {
+        while (i < data.length && data[i] !== 0xf0) {
+          i++;
+        }
+        if (i >= data.length) {
+          break;
+        }
+        const start = i;
+        while (i < data.length && data[i] !== 0xf7) {
+          i++;
+        }
+        if (i >= data.length) {
+          break;
+        }
+        const end = i;
+        messages.push(data.slice(start, end + 1));
+        i = end + 1;
+      }
+      return messages;
+    };
+
+    const onImportSyxFileChanged = async (event: Event): Promise<void> => {
+      const input = event.target as HTMLInputElement | null;
+      const file = input?.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      if (input) {
+        input.value = "";
+      }
+
+      try {
+        isBackupBusy.value = true;
+        backupStatus.value = "Importing SYX...";
+
+        const buf = await file.arrayBuffer();
+        const data = new Uint8Array(buf);
+        const messages = parseSyxMessages(data);
+
+        // Refresh current device state so we can skip existing masks
+        await refreshMappingsForBackup();
+        const existingMasks = new Set<number>();
+        for (const entry of saxophoneState.entries) {
+          if (entry && entry.used) {
+            existingMasks.add(entry.mask >>> 0);
+          }
+        }
+
+        let found = 0;
+        let imported = 0;
+        let skipped = 0;
+        let invalid = 0;
+        for (const msg of messages) {
+          // Expected: F0 00 53 43 7E 01 m0 m1 m2 m3 note F7
+          if (msg.length !== 12) {
+            continue;
+          }
+          if (
+            msg[0] !== 0xf0 ||
+            msg[1] !== 0x00 ||
+            msg[2] !== 0x53 ||
+            msg[3] !== 0x43 ||
+            msg[4] !== SAX_SYSEX_TAG ||
+            msg[5] !== CMD_SET ||
+            msg[11] !== 0xf7
+          ) {
+            continue;
+          }
+
+          found++;
+          const mask = unpackMask(msg[6], msg[7], msg[8], msg[9]) >>> 0;
+          const note = msg[10] & 0x7f;
+          const maskOk = Number.isInteger(mask) && mask >= 0 && mask < (1 << 26);
+          const noteOk = Number.isInteger(note) && note >= 0 && note <= 127;
+          if (!maskOk || !noteOk) {
+            invalid++;
+            continue;
+          }
+
+          if (existingMasks.has(mask)) {
+            skipped++;
+            continue;
+          }
+
+          saxophoneActions.setMapping(mask >>> 0, note & 0x7f);
+          existingMasks.add(mask);
+          imported++;
+
+          if (imported % 8 === 0) {
+            backupStatus.value = `Importing SYX... (${imported} ok, ${skipped} skipped)`;
+          }
+
+          await delay(10);
+        }
+
+        if (!found) {
+          backupStatus.value = "No supported messages found in SYX";
+          return;
+        }
+
+        backupStatus.value = `Imported SYX ${imported}, skipped ${skipped}, invalid ${invalid}`;
+      } catch (e) {
+        backupStatus.value = "SYX import failed";
       } finally {
         isBackupBusy.value = false;
       }
@@ -1352,9 +1568,13 @@ export default defineComponent({
       isBackupBusy,
       backupStatus,
       importInput,
+      importSyxInput,
       exportMappingsJson,
       triggerImportJson,
       onImportFileChanged,
+      exportMappingsSyx,
+      triggerImportSyx,
+      onImportSyxFileChanged,
     };
   },
 });
