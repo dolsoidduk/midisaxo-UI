@@ -46,6 +46,29 @@
           <p class="help-text">
             Requests current 26-bit fingering mask from device (SysEx 0x7E).
           </p>
+
+          <div class="mt-3">
+            <div class="grid grid-cols-13 gap-1 max-w-xl">
+              <button
+                v-for="bit in maskBits"
+                :key="bit"
+                type="button"
+                class="h-8 rounded border text-xs font-mono"
+                :class="
+                  isMaskBitSet(bit)
+                    ? 'bg-gray-200 text-gray-900 border-gray-300'
+                    : 'bg-transparent text-gray-200 border-gray-600'
+                "
+                :disabled="!isConnected"
+                @click.prevent="toggleMaskBit(bit)"
+              >
+                {{ bit }}
+              </button>
+            </div>
+            <p class="help-text">
+              Click bits to edit the mask used by Set/Delete.
+            </p>
+          </div>
         </div>
 
         <div class="form-field">
@@ -380,6 +403,17 @@ export default defineComponent({
     const currentMask = computed(() => saxophoneState.currentMask);
     const lastUpdated = computed(() => saxophoneState.lastUpdated);
 
+    const isMaskDirty = ref(false);
+    const editMask = ref<number | null>(null);
+
+    const effectiveMask = computed(() => {
+      if (editMask.value !== null && editMask.value !== undefined) {
+        return editMask.value;
+      }
+
+      return currentMask.value;
+    });
+
     const isLoadingEntries = computed(() => saxophoneState.isLoadingEntries);
     const receivedCount = computed(
       () => Object.keys(saxophoneState.receivedEntries || {}).length,
@@ -398,27 +432,52 @@ export default defineComponent({
     });
 
     const maskHex = computed(() => {
-      if (currentMask.value === null || currentMask.value === undefined) {
+      const mask = effectiveMask.value;
+      if (mask === null || mask === undefined) {
         return "-";
       }
-      const hex = (currentMask.value >>> 0).toString(16).padStart(8, "0");
+
+      const hex = (mask >>> 0).toString(16).padStart(8, "0");
       return `0x${hex}`;
     });
 
     const canSet = computed(
       () =>
         isConnected.value &&
-        currentMask.value !== null &&
+        effectiveMask.value !== null &&
         Number.isFinite(note.value) &&
         note.value >= 0 &&
         note.value <= 127,
     );
 
-    const canDelete = computed(
-      () => isConnected.value && currentMask.value !== null,
-    );
+    const canDelete = computed(() => isConnected.value && effectiveMask.value !== null);
 
-    const requestMask = () => saxophoneActions.requestCurrentMask();
+    const maskBits = computed(() => Array.from({ length: 26 }, (_, i) => i));
+
+    const isMaskBitSet = (bit: number): boolean => {
+      const mask = effectiveMask.value;
+      if (mask === null || mask === undefined) {
+        return false;
+      }
+
+      return ((mask >>> 0) & (1 << bit)) !== 0;
+    };
+
+    const toggleMaskBit = (bit: number): void => {
+      if (!isConnected.value) {
+        return;
+      }
+
+      const base = effectiveMask.value ?? 0;
+      const next = (base >>> 0) ^ (1 << bit);
+      editMask.value = next;
+      isMaskDirty.value = true;
+    };
+
+    const requestMask = () => {
+      isMaskDirty.value = false;
+      saxophoneActions.requestCurrentMask();
+    };
 
     // SysExConf system settings indices (see firmware sys::Config::systemSetting_t)
     const SYS_SETTINGS_SECTION = 2;
@@ -751,6 +810,8 @@ export default defineComponent({
         } else {
           transposePreset.value = null;
           adcPinMap.value = null;
+          editMask.value = null;
+          isMaskDirty.value = false;
           breathCcMode.value = null;
           pbDeadzone.value = null;
           pbEnable.value = null;
@@ -758,6 +819,18 @@ export default defineComponent({
           pbCenter.value = null;
           breathZero.value = null;
         }
+      },
+      { immediate: true },
+    );
+
+    watch(
+      currentMask,
+      (v) => {
+        if (isMaskDirty.value) {
+          return;
+        }
+
+        editMask.value = v;
       },
       { immediate: true },
     );
@@ -954,14 +1027,26 @@ export default defineComponent({
       if (!canSet.value) {
         return;
       }
-      saxophoneActions.setMapping(currentMask.value, note.value);
+
+      const mask = effectiveMask.value;
+      if (mask === null || mask === undefined) {
+        return;
+      }
+
+      saxophoneActions.setMapping(mask, note.value);
     };
 
     const deleteMapping = () => {
       if (!canDelete.value) {
         return;
       }
-      saxophoneActions.deleteMapping(currentMask.value);
+
+      const mask = effectiveMask.value;
+      if (mask === null || mask === undefined) {
+        return;
+      }
+
+      saxophoneActions.deleteMapping(mask);
     };
 
     const loadMappings = async () => {
@@ -978,6 +1063,8 @@ export default defineComponent({
       }
 
       // Use selected entry as current edit target
+      editMask.value = entry.mask;
+      isMaskDirty.value = false;
       saxophoneState.currentMask = entry.mask;
       saxophoneState.lastUpdated = new Date();
       note.value = entry.note;
@@ -1021,6 +1108,9 @@ export default defineComponent({
       receivedCount,
       nonEmptyEntries,
       requestMask,
+      maskBits,
+      isMaskBitSet,
+      toggleMaskBit,
       isCalibrationAnyBusy,
       isCalibrationWriteBusy,
       analog0PinText,
