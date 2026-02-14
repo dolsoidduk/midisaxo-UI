@@ -48,16 +48,16 @@
           </p>
 
           <div class="mt-3">
-            <div class="grid grid-cols-13 gap-1 max-w-xl">
+            <div class="inline-grid grid-cols-13 grid-rows-2 gap-1">
               <button
                 v-for="bit in maskBits"
                 :key="bit"
                 type="button"
-                class="h-8 rounded border text-xs font-mono"
+                class="h-8 w-8 rounded border text-xs font-mono flex items-center justify-center focus:outline-none focus:ring-1 focus:ring-gray-400"
                 :class="
                   isMaskBitSet(bit)
                     ? 'bg-gray-200 text-gray-900 border-gray-300'
-                    : 'bg-transparent text-gray-200 border-gray-600'
+                    : 'bg-transparent text-gray-200 border-gray-600 hover:border-gray-300 hover:text-gray-100'
                 "
                 :disabled="!isConnected"
                 @click.prevent="toggleMaskBit(bit)"
