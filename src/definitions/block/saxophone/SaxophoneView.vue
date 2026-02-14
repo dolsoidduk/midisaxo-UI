@@ -48,7 +48,7 @@
           </p>
 
           <div class="mt-3">
-            <div class="inline-grid grid-cols-13 grid-rows-2 gap-1">
+            <div class="inline-grid grid-rows-2 grid-cols-[repeat(13,2rem)] gap-1">
               <button
                 v-for="bit in maskBits"
                 :key="bit"
