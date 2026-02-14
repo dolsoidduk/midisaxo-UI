@@ -5,9 +5,14 @@
     :value="value"
     @change="emit('changed', $event.target.value)"
   >
-    <option v-for="(opt, idx) in optionsArray" :key="idx" :value="opt.value">{{
-      opt.text
-    }}</option>
+    <option
+      v-for="(opt, idx) in optionsArray"
+      :key="idx"
+      :value="opt.value"
+      class="text-gray-900"
+    >
+      {{ opt.text }}
+    </option>
   </select>
 </template>
 

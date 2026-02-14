@@ -30,6 +30,7 @@ export enum Request {
   Reboot = "Reboot",
   Backup = "Backup",
   GetBootLoaderSupport = "GetBootLoaderSupport",
+  GetAdcPinMap = "GetAdcPinMap",
   BootloaderMode = "BootloaderMode",
   FactoryReset = "FactoryReset",
   GetValue = "GetValue",
@@ -143,6 +144,12 @@ export const requestDefinitions: Dictionary<IRequestDefinition> = {
     specialRequestId: 81, // Hex: 51
     decodeDoubleByte: true,
     parser: (response: number[]): number => response[0],
+  },
+  [Request.GetAdcPinMap]: {
+    key: Request.GetAdcPinMap,
+    type: RequestType.Custom,
+    specialRequestId: 82, // Hex: 52
+    decodeDoubleByte: true,
   },
   [Request.BootloaderMode]: {
     key: Request.BootloaderMode,

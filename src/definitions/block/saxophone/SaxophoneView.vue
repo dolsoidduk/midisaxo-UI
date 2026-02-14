@@ -116,13 +116,10 @@
         <div class="form-field">
           <label class="label">Pitch Bend (analog1)</label>
           <div class="mt-2 flex items-center gap-3">
-            <FormToggle
-              :value="analog1Enabled"
-              class="toggle-sm labeled"
-              @changed="onAnalog1EnabledChanged"
-            >
-              enabled
-            </FormToggle>
+            <span class="text-sm text-gray-200">
+              <span class="faded">Pin</span>
+              <span class="ml-2 font-mono">{{ analog1PinText }}</span>
+            </span>
             <span class="text-sm text-gray-200">
               <span class="faded">Cal</span>
               <span class="ml-2">{{ pbEnableText }}</span>
@@ -214,13 +211,10 @@
         <div class="form-field">
           <label class="label">Breath (analog0)</label>
           <div class="mt-2 flex items-center gap-3">
-            <FormToggle
-              :value="analog0Enabled"
-              class="toggle-sm labeled"
-              @changed="onAnalog0EnabledChanged"
-            >
-              enabled
-            </FormToggle>
+            <span class="text-sm text-gray-200">
+              <span class="faded">Pin</span>
+              <span class="ml-2 font-mono">{{ analog0PinText }}</span>
+            </span>
           </div>
 
           <div class="mt-4">
@@ -449,8 +443,10 @@ export default defineComponent({
         isCalibrationCaptureBusy.value ||
         isCalibrationRefreshBusy.value,
     );
-    const analog0Enabled = ref<number | null>(null);
-    const analog1Enabled = ref<number | null>(null);
+
+    const isAdcPinMapBusy = ref(false);
+    const adcPinMap = ref<Array<{ port: number; index: number }> | null>(null);
+
     const breathCcMode = ref<number | null>(null);
     const pbEnable = ref<number | null>(null);
     const pbMin = ref<number | null>(null);
@@ -515,13 +511,14 @@ export default defineComponent({
         : String(breathZero.value),
     );
 
-    const readSystemSetting = async (index: number): Promise<number> => {
-      let value: number = null;
+    const readSystemSetting = async (index: number): Promise<number | null> => {
+      let value: number | null = null;
 
       await sendMessage({
         command: Request.GetValue,
         handler: (res: number[]): void => {
-          value = res?.[0];
+          const v = res?.[0];
+          value = Number.isFinite(v) ? v : null;
         },
         config: {
           block: Block.Global,
@@ -549,41 +546,67 @@ export default defineComponent({
       });
     };
 
-    const ANALOG_ENABLE_SECTION = 0;
+    const loadAdcPinMap = async (): Promise<void> => {
+      if (!isConnected.value || isAdcPinMapBusy.value) {
+        return;
+      }
 
-    const readAnalogEnabled = async (analogIndex: number): Promise<number> => {
-      let value: number = null;
+      isAdcPinMapBusy.value = true;
 
-      await sendMessage({
-        command: Request.GetValue,
-        handler: (res: number[]): void => {
-          value = res?.[0];
-        },
-        config: {
-          block: Block.Analog,
-          section: ANALOG_ENABLE_SECTION,
-          index: analogIndex,
-        },
-      });
+      try {
+        await sendMessage({
+          command: Request.GetAdcPinMap,
+          handler: (res: number[]): void => {
+            if (!Array.isArray(res) || res.length < 1) {
+              adcPinMap.value = null;
+              return;
+            }
 
-      return value;
+            const count = Number(res[0]);
+            if (!Number.isFinite(count) || count <= 0) {
+              adcPinMap.value = [];
+              return;
+            }
+
+            const pins: Array<{ port: number; index: number }> = [];
+            for (let i = 0; i < count; i++) {
+              const port = Number(res[1 + i * 2]);
+              const index = Number(res[1 + i * 2 + 1]);
+
+              if (!Number.isFinite(port) || !Number.isFinite(index)) {
+                break;
+              }
+
+              pins.push({ port, index });
+            }
+
+            adcPinMap.value = pins;
+          },
+        });
+      } catch (err) {
+        console.error("Failed to load ADC pin map", err);
+        adcPinMap.value = null;
+      } finally {
+        isAdcPinMapBusy.value = false;
+      }
     };
 
-    const writeAnalogEnabled = async (
-      analogIndex: number,
-      value: number,
-    ): Promise<void> => {
-      await sendMessage({
-        command: Request.SetValue,
-        handler: (): void => {},
-        config: {
-          block: Block.Analog,
-          section: ANALOG_ENABLE_SECTION,
-          index: analogIndex,
-          value,
-        },
-      });
+    const pinTextForAnalog = (analogIndex: number): string => {
+      const pin = adcPinMap.value?.[analogIndex];
+      if (!pin) {
+        return "-";
+      }
+
+      // RP2040 style: port=0, index is GPIO number (e.g., 26,27,28)
+      if (pin.port === 0) {
+        return `GPIO${pin.index}`;
+      }
+
+      return `P${pin.port}:${pin.index}`;
     };
+
+    const analog0PinText = computed(() => pinTextForAnalog(0));
+    const analog1PinText = computed(() => pinTextForAnalog(1));
 
     const ANALOG_MIDI_ID_LSB_SECTION = 3;
     const ANALOG_MIDI_ID_MSB_SECTION = 4;
@@ -634,8 +657,6 @@ export default defineComponent({
         zero,
         preset,
         deadzone,
-        a0Enabled,
-        a1Enabled,
         breathLink,
         a0MidiIdLsb,
       ] = await Promise.all([
@@ -645,8 +666,6 @@ export default defineComponent({
         readSystemSetting(SS_BREATH_CAL_ZERO),
         readSystemSetting(SS_TRANSPOSE_PRESET),
         readSystemSetting(SS_PB_DEADZONE),
-        readAnalogEnabled(0),
-        readAnalogEnabled(1),
         readSystemSetting(SS_BREATH_LINK_CC2_CC11),
         readAnalogValue(0, ANALOG_MIDI_ID_LSB_SECTION),
       ]);
@@ -656,9 +675,6 @@ export default defineComponent({
       pbCenter.value = Number.isFinite(center) ? center : null;
       pbDeadzone.value = Number.isFinite(deadzone) ? deadzone : null;
       breathZero.value = Number.isFinite(zero) ? zero : null;
-
-      analog0Enabled.value = Number.isFinite(a0Enabled) ? a0Enabled : null;
-      analog1Enabled.value = Number.isFinite(a1Enabled) ? a1Enabled : null;
 
       // 0=CC02, 1=CC11, 2=CC02+CC11 (mirrored)
       if (Number.isFinite(breathLink) && breathLink) {
@@ -683,14 +699,23 @@ export default defineComponent({
       isTransposeBusy.value = true;
       try {
         const preset = await readSystemSetting(SS_TRANSPOSE_PRESET);
+        if (preset === null || preset === undefined) {
+          transposePreset.value = null;
+          return;
+        }
+
         const p = Number(preset);
         transposePreset.value = Number.isFinite(p) && p >= 0 && p <= 4 ? p : null;
+      } catch (err) {
+        // Avoid unhandled promise rejections that can make UI controls appear unresponsive.
+        // Keep current UI value if request fails.
+        console.error("Failed to load sax transpose preset", err);
       } finally {
         isTransposeBusy.value = false;
       }
     };
 
-    const onTransposePresetChanged = async (value: string) => {
+    const onTransposePresetChanged = async (value: string | number) => {
       if (!isConnected.value || isTransposeBusy.value) {
         return;
       }
@@ -700,12 +725,20 @@ export default defineComponent({
         return;
       }
 
+      let shouldReloadFromDevice = false;
       isTransposeBusy.value = true;
       try {
         await writeSystemSetting(SS_TRANSPOSE_PRESET, parsed);
         transposePreset.value = parsed;
+      } catch (err) {
+        console.error("Failed to set sax transpose preset", err);
+        shouldReloadFromDevice = true;
       } finally {
         isTransposeBusy.value = false;
+      }
+
+      if (shouldReloadFromDevice) {
+        await loadTransposePreset();
       }
     };
 
@@ -714,10 +747,10 @@ export default defineComponent({
       (v) => {
         if (v) {
           loadTransposePreset();
+          loadAdcPinMap();
         } else {
           transposePreset.value = null;
-          analog0Enabled.value = null;
-          analog1Enabled.value = null;
+          adcPinMap.value = null;
           breathCcMode.value = null;
           pbDeadzone.value = null;
           pbEnable.value = null;
@@ -739,38 +772,6 @@ export default defineComponent({
         await refreshCalibrationImpl();
       } finally {
         isCalibrationRefreshBusy.value = false;
-      }
-    };
-
-    const onAnalog0EnabledChanged = async (value: number): Promise<void> => {
-      if (!isConnected.value || isCalibrationAnyBusy.value) {
-        return;
-      }
-
-      const v = value ? 1 : 0;
-
-      isCalibrationWriteBusy.value = true;
-      try {
-        await writeAnalogEnabled(0, v);
-        analog0Enabled.value = v;
-      } finally {
-        isCalibrationWriteBusy.value = false;
-      }
-    };
-
-    const onAnalog1EnabledChanged = async (value: number): Promise<void> => {
-      if (!isConnected.value || isCalibrationAnyBusy.value) {
-        return;
-      }
-
-      const v = value ? 1 : 0;
-
-      isCalibrationWriteBusy.value = true;
-      try {
-        await writeAnalogEnabled(1, v);
-        analog1Enabled.value = v;
-      } finally {
-        isCalibrationWriteBusy.value = false;
       }
     };
 
@@ -1022,8 +1023,8 @@ export default defineComponent({
       requestMask,
       isCalibrationAnyBusy,
       isCalibrationWriteBusy,
-      analog0Enabled,
-      analog1Enabled,
+      analog0PinText,
+      analog1PinText,
       pbEnable,
       pbMin,
       pbCenter,
@@ -1035,8 +1036,6 @@ export default defineComponent({
       pbDeadzoneText,
       breathZeroText,
       refreshCalibration,
-      onAnalog0EnabledChanged,
-      onAnalog1EnabledChanged,
       breathCcMode,
       breathCcModeOptions,
       onBreathCcModeChanged,

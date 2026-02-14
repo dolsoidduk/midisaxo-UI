@@ -51,11 +51,31 @@ export const sections: Dictionary<ISectionDefinition> = {
       },
       {
         value: 2,
-        text: "SH1106",
+        text: "SH1106 (X+1)",
+      },
+      {
+        value: 3,
+        text: "SH1106 (X+0)",
+      },
+      {
+        value: 4,
+        text: "SH1106 (X+2)",
+      },
+      {
+        value: 5,
+        text: "SH1106 (X+1, Y+0)",
+      },
+      {
+        value: 6,
+        text: "SH1106 (X+0, Y+0)",
+      },
+      {
+        value: 7,
+        text: "SH1106 (X+2, Y+0)",
       },
     ],
     label: "Display controller",
-    helpText: ``,
+    helpText: `If the screen looks shifted or clipped, try other SH1106 X/Y offsets until it lines up.`,
   },
   DisplayResolution: {
     showIf: (formState: FormState): boolean => formState.enableDisplay,
