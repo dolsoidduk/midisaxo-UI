@@ -328,6 +328,38 @@
           </div>
           <p class="help-text">Reads all 128 mapping slots from device.</p>
         </div>
+
+        <div class="form-field">
+          <label class="label">Backup</label>
+          <div class="flex items-center gap-2">
+            <Button
+              :disabled="!isConnected || isBackupBusy"
+              @click.prevent="exportMappingsJson"
+            >
+              Export JSON
+            </Button>
+            <Button
+              :disabled="!isConnected || isBackupBusy"
+              @click.prevent="triggerImportJson"
+            >
+              Import JSON
+            </Button>
+            <input
+              ref="importInput"
+              class="hidden"
+              type="file"
+              accept=".json,application/json"
+              @change="onImportFileChanged"
+            />
+          </div>
+          <p class="help-text">
+            Saves/restores fingering mappings as a JSON file on this computer.
+          </p>
+          <p v-if="backupStatus" class="mt-2 text-sm text-gray-200">
+            <span class="faded">Backup</span>
+            <span class="ml-2">{{ backupStatus }}</span>
+          </p>
+        </div>
       </div>
     </div>
 
@@ -423,6 +455,176 @@ export default defineComponent({
     const receivedCount = computed(
       () => Object.keys(saxophoneState.receivedEntries || {}).length,
     );
+
+    const isBackupBusy = ref(false);
+    const backupStatus = ref<string | null>(null);
+    const importInput = ref<HTMLInputElement | null>(null);
+
+    const waitForReceivedEntries = async (
+      expected: number,
+      timeoutMs: number,
+    ): Promise<number> => {
+      const started = Date.now();
+      while (receivedCount.value < expected && Date.now() - started < timeoutMs) {
+        await delay(50);
+      }
+      return receivedCount.value;
+    };
+
+    const refreshMappingsForBackup = async (): Promise<void> => {
+      if (!isConnected.value) {
+        backupStatus.value = "Not connected";
+        return;
+      }
+
+      isBackupBusy.value = true;
+      backupStatus.value = "Reading mappings...";
+      await saxophoneActions.loadAllEntries();
+      const got = await waitForReceivedEntries(128, 6000);
+      backupStatus.value = `Received ${got} / 128`;
+      isBackupBusy.value = false;
+    };
+
+    const exportMappingsJson = async (): Promise<void> => {
+      if (!isConnected.value) {
+        backupStatus.value = "Not connected";
+        return;
+      }
+
+      try {
+        isBackupBusy.value = true;
+        backupStatus.value = "Preparing export...";
+
+        await refreshMappingsForBackup();
+
+        const mappings = saxophoneState.entries
+          .filter((e) => !!e && e.used)
+          .map((e) => ({ mask: (e!.mask >>> 0) as number, note: (e!.note & 0x7f) as number }));
+
+        const payload = {
+          version: 1,
+          createdAt: new Date().toISOString(),
+          mappings,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        });
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const ts = new Date()
+          .toISOString()
+          .replaceAll(":", "")
+          .replaceAll("-", "")
+          .replace("T", "_")
+          .replace("Z", "");
+        a.href = url;
+        a.download = `midisaxo-fingering-mappings-${ts}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        backupStatus.value = `Exported ${mappings.length} mapping(s)`;
+      } catch (e) {
+        backupStatus.value = "Export failed";
+      } finally {
+        isBackupBusy.value = false;
+      }
+    };
+
+    const triggerImportJson = (): void => {
+      if (!isConnected.value) {
+        backupStatus.value = "Not connected";
+        return;
+      }
+
+      importInput.value?.click();
+    };
+
+    const onImportFileChanged = async (event: Event): Promise<void> => {
+      const input = event.target as HTMLInputElement | null;
+      const file = input?.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      // Allow selecting the same file again
+      if (input) {
+        input.value = "";
+      }
+
+      try {
+        isBackupBusy.value = true;
+        backupStatus.value = "Importing...";
+
+        const text = await file.text();
+        const parsed = JSON.parse(text) as unknown;
+
+        const rawMappings = Array.isArray(parsed)
+          ? parsed
+          : (parsed as { mappings?: unknown }).mappings;
+
+        if (!Array.isArray(rawMappings)) {
+          backupStatus.value = "Invalid JSON (missing mappings[])";
+          return;
+        }
+
+        const normalized: Array<{ mask: number; note: number }> = [];
+        let invalid = 0;
+        for (const m of rawMappings) {
+          const mm = m as { mask?: unknown; note?: unknown };
+          const mask = Number(mm.mask);
+          const note = Number(mm.note);
+          const maskOk = Number.isInteger(mask) && mask >= 0 && mask < (1 << 26);
+          const noteOk = Number.isInteger(note) && note >= 0 && note <= 127;
+          if (!maskOk || !noteOk) {
+            invalid++;
+            continue;
+          }
+          normalized.push({ mask: mask >>> 0, note: note & 0x7f });
+          if (normalized.length >= 128) {
+            break;
+          }
+        }
+
+        if (!normalized.length) {
+          backupStatus.value = invalid
+            ? `No valid mappings (invalid: ${invalid})`
+            : "No mappings in file";
+          return;
+        }
+
+        // Refresh current device state so we can skip existing masks
+        await refreshMappingsForBackup();
+        const existingMasks = new Set<number>();
+        for (const entry of saxophoneState.entries) {
+          if (entry && entry.used) {
+            existingMasks.add(entry.mask >>> 0);
+          }
+        }
+
+        let imported = 0;
+        let skipped = 0;
+        for (const m of normalized) {
+          if (existingMasks.has(m.mask)) {
+            skipped++;
+            continue;
+          }
+          saxophoneActions.setMapping(m.mask >>> 0, m.note & 0x7f);
+          existingMasks.add(m.mask);
+          imported++;
+          await delay(10);
+        }
+
+        backupStatus.value = `Imported ${imported}, skipped ${skipped}, invalid ${invalid}`;
+      } catch (e) {
+        backupStatus.value = "Import failed";
+      } finally {
+        isBackupBusy.value = false;
+      }
+    };
 
     const nonEmptyEntries = computed(() => {
       const rows = [] as Array<{ index: number; maskHex: string; note: number }>;
@@ -1145,6 +1347,14 @@ export default defineComponent({
       loadMappings,
       useEntry,
       deleteEntry,
+
+      // Backup/restore (PC-side JSON)
+      isBackupBusy,
+      backupStatus,
+      importInput,
+      exportMappingsJson,
+      triggerImportJson,
+      onImportFileChanged,
     };
   },
 });
