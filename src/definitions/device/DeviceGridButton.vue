@@ -9,6 +9,7 @@
     }"
     :class="{
       'btn-highlight': isHighlighted,
+      'btn-sax': sax,
     }"
   >
     <slot name="default"></slot>
@@ -37,6 +38,10 @@ export default defineComponent({
     highlight: {
       default: null,
       type: Number, // abs time in ms
+    },
+    sax: {
+      default: false,
+      type: Boolean,
     },
   },
   setup(props) {

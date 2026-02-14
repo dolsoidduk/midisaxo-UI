@@ -86,6 +86,7 @@
         :route-name="routeName"
         :index="index - 1"
         :highlight="highlights[block][index - 1]"
+        :sax="isSaxFingeringKey(index - 1)"
       >
         <span class="text-xl font-bold">{{ index - 1 }}</span>
       </DeviceGridButton>
@@ -110,6 +111,7 @@
             :route-name="routeName"
             :index="index"
             :highlight="highlights[block][index]"
+            :sax="isSaxFingeringKey(index)"
           >
             <span class="text-xl font-bold">{{ index }}</span>
           </DeviceGridButton>
@@ -120,8 +122,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, toRefs } from "vue";
-import { Block } from "./../../definitions";
+import { defineComponent, toRefs, ref, computed, onMounted, watch } from "vue";
+import { Block, ButtonMessageType } from "./../../definitions";
 import { deviceStoreMapped, requestLogMapped } from "../../store";
 import {
   useDeviceTableView,
@@ -161,9 +163,13 @@ export default defineComponent({
       setViewSetting,
       showMsbControls,
       numberOfComponents,
+      isConnected,
+      valueSize,
+      getRawSectionValues,
     } = deviceStoreMapped;
     const { highlights } = requestLogMapped;
     const { block, segmentGrid } = toRefs(props);
+
 
     const segments = segmentGrid.value
       ? useGridSegments(numberOfComponents, block)
@@ -177,12 +183,48 @@ export default defineComponent({
       viewSetting,
     } = useViewSettings(block.value);
 
+    const buttonMessageTypes = ref<number[]>([]);
+    const isGridMode = computed(() => !viewSetting.value.viewListAsTable);
+    const isDoubleByteProtocol = computed(() => valueSize.value === 2);
+
+    const loadButtonGridMeta = async (): Promise<void> => {
+      // Only needed for button grid highlight.
+      if (!isConnected.value) {
+        return;
+      }
+      if (!isDoubleByteProtocol.value) {
+        return;
+      }
+      if (!isGridMode.value) {
+        return;
+      }
+      if (block.value !== Block.Button) {
+        return;
+      }
+
+      // Button definition: "Message type" is section 1.
+      const SECTION_MESSAGE_TYPE = 1;
+      buttonMessageTypes.value = await getRawSectionValues(
+        Block.Button,
+        SECTION_MESSAGE_TYPE,
+      );
+    };
+
     const {
       columnViewData,
       loading,
       showField,
       onValueChange,
     } = useDeviceTableView(block.value, viewSetting);
+
+    const isSaxFingeringKey = (index: number): boolean =>
+      buttonMessageTypes.value?.[index] === ButtonMessageType.SaxFingeringKey;
+
+    onMounted(() => loadButtonGridMeta());
+    watch(
+      [() => isConnected.value, () => valueSize.value, () => viewSetting.value.viewListAsTable, () => block.value],
+      () => loadButtonGridMeta(),
+    );
 
     return {
       outputId,
@@ -200,6 +242,7 @@ export default defineComponent({
       sections,
       showMsbControls,
       segments,
+      isSaxFingeringKey,
     };
   },
 });

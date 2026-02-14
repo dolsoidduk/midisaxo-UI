@@ -23,6 +23,14 @@
   @apply bg-yellow-400 text-gray-800 shadow-outline outline-none;
 }
 
+/* sax fingering key buttons */
+
+.device-grid .btn-sax,
+.device-grid .btn-sax:hover,
+.device-grid .btn-sax:focus {
+  @apply bg-blue-400 border-blue-600 text-gray-900 shadow-outline outline-none;
+}
+
 /* highlighted buttons */
 
 .device-grid .btn-highlight,

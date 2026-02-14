@@ -505,6 +505,29 @@ export const getSectionValues = async (
   return settings;
 };
 
+export const getRawSectionValues = async (
+  block: Block,
+  section: number,
+): Promise<number[]> => {
+  await ensureConnection();
+  const values: number[] = [];
+
+  const handler = (res: number[]): void => {
+    if (Array.isArray(res) && res.length) {
+      values.push(...res);
+    }
+    return false;
+  };
+
+  await sendMessage({
+    command: Request.GetSectionValues,
+    handler,
+    config: { block, section },
+  }).catch((error) => logger.error("Failed to read raw section values", error));
+
+  return values;
+};
+
 // Export
 
 export const deviceStoreActions = {
@@ -527,6 +550,7 @@ export const deviceStoreActions = {
   getComponentSettings,
   setComponentSectionValue,
   getSectionValues,
+  getRawSectionValues,
   getFilteredSectionsForBlock,
 };
 
