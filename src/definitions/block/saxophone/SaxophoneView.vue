@@ -1180,7 +1180,8 @@ export default defineComponent({
       } else if (Number.isFinite(a0MidiIdLsb) && Number(a0MidiIdLsb) === 2) {
         breathCcMode.value = 0;
       } else {
-        breathCcMode.value = null;
+        // Fallback: keep UI usable even if firmware/config doesn't expose the current mode.
+        breathCcMode.value = 2;
       }
 
       const p = Number(preset);
