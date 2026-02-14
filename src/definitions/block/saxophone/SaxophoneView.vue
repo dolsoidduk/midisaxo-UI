@@ -102,7 +102,7 @@
     <div class="pb-8">
       <div class="form-field">
         <Button
-          :disabled="!isConnected || isCalibrationBusy"
+          :disabled="!isConnected || isCalibrationAnyBusy"
           @click.prevent="refreshCalibration"
         >
           Refresh calibration values
@@ -140,7 +140,7 @@
               min="0"
               max="2048"
               step="1"
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationWriteBusy"
               :value="pbDeadzone ?? 0"
               @change="(e) => onPbDeadzoneChanged(e.target.value)"
             />
@@ -161,7 +161,7 @@
               min="0"
               max="16383"
               step="1"
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationWriteBusy"
               :value="pbCenter ?? 0"
               @change="(e) => onPbCenterChanged(e.target.value)"
             />
@@ -182,7 +182,7 @@
               min="0"
               max="16383"
               step="1"
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationWriteBusy"
               :value="pbMin ?? 0"
               @change="(e) => onPbMinChanged(e.target.value)"
             />
@@ -194,13 +194,13 @@
 
           <div class="mt-3 flex items-center gap-2">
             <Button
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationAnyBusy"
               @click.prevent="capturePitchBendCenter"
             >
               Capture center
             </Button>
             <Button
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationAnyBusy"
               @click.prevent="capturePitchBendMin"
             >
               Capture min
@@ -228,7 +228,7 @@
             <FormSelect
               :value="breathCcMode"
               :options="breathCcModeOptions"
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationWriteBusy"
               @changed="onBreathCcModeChanged"
             />
             <p class="help-text">
@@ -247,7 +247,7 @@
               min="0"
               max="16383"
               step="1"
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationWriteBusy"
               :value="breathZero ?? 0"
               @change="(e) => onBreathZeroChanged(e.target.value)"
             />
@@ -259,7 +259,7 @@
 
           <div class="mt-3 flex items-center gap-2">
             <Button
-              :disabled="!isConnected || isCalibrationBusy"
+              :disabled="!isConnected || isCalibrationAnyBusy"
               @click.prevent="captureBreathZero"
             >
               Capture zero
@@ -439,7 +439,16 @@ export default defineComponent({
     const SS_TRANSPOSE_PRESET = 12;
     const SS_PB_DEADZONE = 13;
 
-    const isCalibrationBusy = ref(false);
+    const isCalibrationWriteBusy = ref(false);
+    const isCalibrationCaptureBusy = ref(false);
+    const isCalibrationRefreshBusy = ref(false);
+
+    const isCalibrationAnyBusy = computed(
+      () =>
+        isCalibrationWriteBusy.value ||
+        isCalibrationCaptureBusy.value ||
+        isCalibrationRefreshBusy.value,
+    );
     const analog0Enabled = ref<number | null>(null);
     const analog1Enabled = ref<number | null>(null);
     const breathCcMode = ref<number | null>(null);
@@ -721,52 +730,52 @@ export default defineComponent({
     );
 
     const refreshCalibration = async (): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
-      isCalibrationBusy.value = true;
+      isCalibrationRefreshBusy.value = true;
       try {
         await refreshCalibrationImpl();
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationRefreshBusy.value = false;
       }
     };
 
     const onAnalog0EnabledChanged = async (value: number): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
       const v = value ? 1 : 0;
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeAnalogEnabled(0, v);
         analog0Enabled.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const onAnalog1EnabledChanged = async (value: number): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
       const v = value ? 1 : 0;
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeAnalogEnabled(1, v);
         analog1Enabled.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const onPbDeadzoneChanged = async (value: string): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
@@ -777,17 +786,17 @@ export default defineComponent({
 
       const v = clamp(parsed, 0, 2048);
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeSystemSetting(SS_PB_DEADZONE, v);
         pbDeadzone.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const onPbCenterChanged = async (value: string): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
@@ -798,17 +807,17 @@ export default defineComponent({
 
       const v = clamp(parsed, 0, 16383);
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeSystemSetting(SS_PB_CAL_CENTER, v);
         pbCenter.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const onPbMinChanged = async (value: string): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
@@ -819,17 +828,17 @@ export default defineComponent({
 
       const v = clamp(parsed, 0, 16383);
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeSystemSetting(SS_PB_CAL_MIN, v);
         pbMin.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const onBreathZeroChanged = async (value: string): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
@@ -840,12 +849,12 @@ export default defineComponent({
 
       const v = clamp(parsed, 0, 16383);
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         await writeSystemSetting(SS_BREATH_CAL_ZERO, v);
         breathZero.value = v;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
@@ -856,7 +865,7 @@ export default defineComponent({
     ];
 
     const onBreathCcModeChanged = async (value: string): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
@@ -865,7 +874,7 @@ export default defineComponent({
         return;
       }
 
-      isCalibrationBusy.value = true;
+      isCalibrationWriteBusy.value = true;
       try {
         if (parsed === 0) {
           // CC02 only
@@ -886,52 +895,52 @@ export default defineComponent({
 
         breathCcMode.value = parsed;
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationWriteBusy.value = false;
       }
     };
 
     const capturePitchBendCenter = async (): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
-      isCalibrationBusy.value = true;
+      isCalibrationCaptureBusy.value = true;
       try {
         await writeSystemSetting(SS_PB_CAL_CAPTURE_CENTER, 1);
         await delay(150);
         await refreshCalibrationImpl();
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationCaptureBusy.value = false;
       }
     };
 
     const capturePitchBendMin = async (): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
-      isCalibrationBusy.value = true;
+      isCalibrationCaptureBusy.value = true;
       try {
         await writeSystemSetting(SS_PB_CAL_CAPTURE_MIN, 1);
         await delay(150);
         await refreshCalibrationImpl();
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationCaptureBusy.value = false;
       }
     };
 
     const captureBreathZero = async (): Promise<void> => {
-      if (!isConnected.value || isCalibrationBusy.value) {
+      if (!isConnected.value || isCalibrationAnyBusy.value) {
         return;
       }
 
-      isCalibrationBusy.value = true;
+      isCalibrationCaptureBusy.value = true;
       try {
         await writeSystemSetting(SS_BREATH_CAL_CAPTURE_ZERO, 1);
         await delay(150);
         await refreshCalibrationImpl();
       } finally {
-        isCalibrationBusy.value = false;
+        isCalibrationCaptureBusy.value = false;
       }
     };
 
@@ -1011,7 +1020,8 @@ export default defineComponent({
       receivedCount,
       nonEmptyEntries,
       requestMask,
-      isCalibrationBusy,
+      isCalibrationAnyBusy,
+      isCalibrationWriteBusy,
       analog0Enabled,
       analog1Enabled,
       pbEnable,
