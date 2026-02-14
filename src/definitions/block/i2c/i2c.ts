@@ -49,6 +49,10 @@ export const sections: Dictionary<ISectionDefinition> = {
         value: 1,
         text: "SSD1306",
       },
+      {
+        value: 2,
+        text: "SH1106",
+      },
     ],
     label: "Display controller",
     helpText: ``,
