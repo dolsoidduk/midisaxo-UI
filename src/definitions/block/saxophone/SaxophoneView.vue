@@ -153,6 +153,9 @@
               <span class="ml-2">{{ pbEnableText }}</span>
             </span>
           </div>
+          <p v-if="adcPinMapStatus" class="mt-2 text-sm text-gray-400">
+            {{ adcPinMapStatus }}
+          </p>
 
           <div class="mt-4">
             <label class="label">
@@ -244,6 +247,9 @@
               <span class="ml-2 font-mono">{{ analog0PinText }}</span>
             </span>
           </div>
+          <p v-if="adcPinMapStatus" class="mt-2 text-sm text-gray-400">
+            {{ adcPinMapStatus }}
+          </p>
 
           <div class="mt-4">
             <label class="label">Breath CC</label>
@@ -426,7 +432,7 @@
 <script lang="ts">
 import { defineComponent, computed, ref, watch } from "vue";
 import { deviceStoreMapped } from "../../../store";
-import { Block, Request } from "../../../definitions";
+import { Block, ErrorCode, Request } from "../../../definitions";
 import {
   saxophoneActions,
   saxophoneState,
@@ -926,6 +932,7 @@ export default defineComponent({
 
     const isAdcPinMapBusy = ref(false);
     const adcPinMap = ref<Array<{ port: number; index: number }> | null>(null);
+    const adcPinMapStatus = ref<string | null>(null);
 
     const breathCcMode = ref<number | null>(null);
     const pbEnable = ref<number | null>(null);
@@ -1032,6 +1039,7 @@ export default defineComponent({
       }
 
       isAdcPinMapBusy.value = true;
+      adcPinMapStatus.value = "Loading pin map...";
 
       try {
         await sendMessage({
@@ -1039,12 +1047,14 @@ export default defineComponent({
           handler: (res: number[]): void => {
             if (!Array.isArray(res) || res.length < 1) {
               adcPinMap.value = null;
+              adcPinMapStatus.value = "Pin map unavailable";
               return;
             }
 
             const count = Number(res[0]);
             if (!Number.isFinite(count) || count <= 0) {
               adcPinMap.value = [];
+              adcPinMapStatus.value = "Pin map not provided by firmware";
               return;
             }
 
@@ -1061,11 +1071,17 @@ export default defineComponent({
             }
 
             adcPinMap.value = pins;
+            adcPinMapStatus.value = null;
           },
         });
       } catch (err) {
         console.error("Failed to load ADC pin map", err);
         adcPinMap.value = null;
+        if (err === ErrorCode.NOT_SUPPORTED) {
+          adcPinMapStatus.value = "Pin map not supported (update firmware)";
+        } else {
+          adcPinMapStatus.value = "Pin map request failed";
+        }
       } finally {
         isAdcPinMapBusy.value = false;
       }
@@ -1535,6 +1551,7 @@ export default defineComponent({
       isCalibrationWriteBusy,
       analog0PinText,
       analog1PinText,
+      adcPinMapStatus,
       pbEnable,
       pbMin,
       pbCenter,
