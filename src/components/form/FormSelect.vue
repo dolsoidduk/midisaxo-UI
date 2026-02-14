@@ -1,7 +1,7 @@
 <template>
   <select
     :key="keyHash"
-    class="form-select mt-1 py-1 text-sm block w-full max-w-sm"
+    class="form-select mt-1 py-1 text-sm block w-full max-w-sm bg-white text-gray-900"
     :value="value"
     @change="emit('changed', $event.target.value)"
   >
@@ -9,7 +9,6 @@
       v-for="(opt, idx) in optionsArray"
       :key="idx"
       :value="opt.value"
-      class="text-gray-900"
     >
       {{ opt.text }}
     </option>
