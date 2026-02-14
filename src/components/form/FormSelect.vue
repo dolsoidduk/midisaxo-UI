@@ -5,6 +5,9 @@
     :value="normalizedValue"
     @change="emit('changed', $event.target.value)"
   >
+    <option value="" disabled>
+      -
+    </option>
     <option
       v-for="(opt, idx) in optionsArray"
       :key="idx"
