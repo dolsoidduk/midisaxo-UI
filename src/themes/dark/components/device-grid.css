@@ -23,6 +23,38 @@
   @apply bg-yellow-400 text-gray-800 shadow-outline outline-none;
 }
 
+/* message type coloring (button block grid) */
+
+.device-grid .btn-msg-note,
+.device-grid .btn-msg-note:hover,
+.device-grid .btn-msg-note:focus {
+  @apply bg-purple-400 border-purple-600 text-gray-900 shadow-outline outline-none;
+}
+
+.device-grid .btn-msg-cc,
+.device-grid .btn-msg-cc:hover,
+.device-grid .btn-msg-cc:focus {
+  @apply bg-teal-400 border-teal-600 text-gray-900 shadow-outline outline-none;
+}
+
+.device-grid .btn-msg-pc,
+.device-grid .btn-msg-pc:hover,
+.device-grid .btn-msg-pc:focus {
+  @apply bg-orange-400 border-orange-600 text-gray-900 shadow-outline outline-none;
+}
+
+.device-grid .btn-msg-preset,
+.device-grid .btn-msg-preset:hover,
+.device-grid .btn-msg-preset:focus {
+  @apply bg-pink-400 border-pink-600 text-gray-900 shadow-outline outline-none;
+}
+
+.device-grid .btn-msg-none,
+.device-grid .btn-msg-none:hover,
+.device-grid .btn-msg-none:focus {
+  @apply bg-gray-700 border-gray-900 text-gray-200 shadow-outline outline-none;
+}
+
 /* sax fingering key buttons */
 
 .device-grid .btn-sax,

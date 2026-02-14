@@ -87,6 +87,7 @@
         :index="index - 1"
         :highlight="highlights[block][index - 1]"
         :sax="isSaxFingeringKey(index - 1)"
+        :message-type="buttonMessageTypes[index - 1]"
       >
         <span class="text-xl font-bold">{{ index - 1 }}</span>
       </DeviceGridButton>
@@ -112,6 +113,7 @@
             :index="index"
             :highlight="highlights[block][index]"
             :sax="isSaxFingeringKey(index)"
+            :message-type="buttonMessageTypes[index]"
           >
             <span class="text-xl font-bold">{{ index }}</span>
           </DeviceGridButton>
@@ -243,6 +245,7 @@ export default defineComponent({
       showMsbControls,
       segments,
       isSaxFingeringKey,
+      buttonMessageTypes,
     };
   },
 });
